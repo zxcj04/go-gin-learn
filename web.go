@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,6 +23,9 @@ func main() {
 	router.GET("/deposit/:input", deposit)
 	router.GET("/withdraw/:input", withdraw)
 	router.GET("/balance/", getBalance)
+
+	// 多筆存款
+	router.GET("/multiDeposit/:input", multiDeposit)
 
 	router.Run()
 }
@@ -55,6 +59,35 @@ func deposit(context *gin.Context) {
 		result.Amount = 0 // 操作未成功，返回金額為0
 		result.Message = "操作失敗，輸入有誤！"
 	}
+	context.JSON(http.StatusOK, result)
+}
+
+func addToBalance(amount int, c chan int) {
+	balance += amount
+	c <- balance
+}
+
+func multiDeposit(context *gin.Context) {
+	input := context.Param("input")
+	// input = "100,200,300"
+	inputs := strings.Split(input, ",")
+	amounts := make([]int, len(inputs))
+	for i, v := range inputs {
+		amounts[i], _ = strconv.Atoi(v)
+	}
+
+	c := make(chan int)
+	for _, amount := range amounts {
+		go addToBalance(amount, c)
+	}
+
+	for range amounts {
+		<-c
+	}
+
+	result.Amount = balance
+	result.Status = "ok"
+	result.Message = ""
 	context.JSON(http.StatusOK, result)
 }
 
